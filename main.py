@@ -12,6 +12,8 @@ API_KEY = os.getenv("API_KEY", None)
 
 MAX_SIZE = 50 * 1024 * 1024  # 50MB
 
+MAX_UPLOADS = 5
+
 if not API_KEY:
     raise Exception("Api key not found. Shutting Down")
 
@@ -36,6 +38,11 @@ async def convert_markdown(
 ):
     if api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Forbidden")
+
+    if len(files) > MAX_UPLOADS:
+        raise HTTPException(
+            status_code=413, detail=f"Cannot upload more than {MAX_UPLOADS} at a time"
+        )
 
     for file in files:
         # NOTE: Not using file.size as it might not be present on the request
