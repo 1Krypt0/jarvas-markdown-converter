@@ -10,7 +10,7 @@ load_dotenv()
 
 API_KEY = os.getenv("API_KEY", None)
 
-MAX_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_SIZE = 50 * 1024 * 1024  # 50MB
 
 if not API_KEY:
     raise Exception("Api key not found. Shutting Down")
@@ -37,13 +37,12 @@ async def convert_markdown(
     if api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Forbidden")
 
-    total_size = 0
     for file in files:
         # NOTE: Not using file.size as it might not be present on the request
-        total_size += len(await file.read())
+        size = len(await file.read(MAX_SIZE + 1))
 
-        if total_size > MAX_SIZE:
-            raise HTTPException(status_code=413, detail="File list too large")
+        if size > MAX_SIZE:
+            raise HTTPException(status_code=413, detail="File too large")
 
     results = []
 
