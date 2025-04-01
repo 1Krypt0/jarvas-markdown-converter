@@ -32,33 +32,38 @@ def get_api_key(authorization: Annotated[str | None, Header()]):
 
 @app.post("/convert")
 async def convert_markdown(
-    file: UploadFile, api_key: Annotated[str | None, Depends(get_api_key)] = None
+    files: list[UploadFile], api_key: Annotated[str | None, Depends(get_api_key)] = None
 ):
     if api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Forbidden")
 
-    content = await file.read(MAX_SIZE + 1)
-    if len(content) > MAX_SIZE:
-        raise HTTPException(status_code=413, detail="File too large")
+    total_size = 0
+    for file in files:
+        # NOTE: Not using file.size as it might not be present on the request
+        total_size += len(await file.read())
 
-    # NOTE: Reset file position so it is read from the start
-    await file.seek(0)
+        if total_size > MAX_SIZE:
+            raise HTTPException(status_code=413, detail="File list too large")
 
-    try:
-        with tempfile.NamedTemporaryFile(
-            suffix=os.path.splitext(file.filename)[1]
-        ) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
+    results = []
 
-            result = md.convert(temp_file_path)
+    for file in files:
+        await file.seek(0)  # NOTE: Reset file position so it is read from the start
 
-            print("Result is")
-            print(result)
+        try:
+            with tempfile.NamedTemporaryFile(
+                suffix=os.path.splitext(file.filename)[1]
+            ) as temp_file:
+                content = await file.read()
+                temp_file.write(content)
+                temp_file_path = temp_file.name
 
-        return {"markdown": result.markdown}
+                res = md.convert(temp_file_path)
 
-    except Exception as e:
-        print(f"Error processing file: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+            results.append(res.markdown)
+
+        except Exception as e:
+            print(f"Error processing file: {str(e)}")
+            raise HTTPException(status_code=500, detail="Internal Server Error")
+
+    return {"files": results}
